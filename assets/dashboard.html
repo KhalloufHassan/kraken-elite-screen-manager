@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<!-- Dashboard page rendered by headless Chromium and streamed to the LCD.
+     640x640, round screen — keep content centered. Live data: /data.json -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 640px; height: 640px; overflow: hidden;
+    background: radial-gradient(circle at 50% 42%, #14202e 0%, #07090d 70%);
+    color: #fff; font-family: "Liberation Sans", "DejaVu Sans", system-ui, sans-serif;
+  }
+  .stage { width: 640px; height: 640px; display: flex; flex-direction: column;
+           align-items: center; justify-content: center; }
+
+  .clock { font-size: 78px; font-weight: 700; letter-spacing: 2px; line-height: 1; }
+  .date  { font-size: 22px; opacity: .55; margin-top: 4px; letter-spacing: 4px; text-transform: uppercase; }
+
+  .rings { display: flex; gap: 56px; margin-top: 40px; }
+  .ring  { position: relative; width: 196px; height: 196px; }
+  .ring svg { width: 196px; height: 196px; transform: rotate(-90deg); }
+  .ring .track { fill: none; stroke: #1c2735; stroke-width: 11; }
+  .ring .bar   { fill: none; stroke-width: 11; stroke-linecap: round;
+                 transition: stroke-dashoffset .4s ease, stroke .4s ease; }
+  .ring .center { position: absolute; inset: 0; display: flex; flex-direction: column;
+                  align-items: center; justify-content: center; }
+  .ring .pct   { font-size: 56px; font-weight: 700; line-height: 1; }
+  .ring .pct .u { font-size: 24px; opacity: .55; }
+  .ring .name  { font-size: 19px; opacity: .55; letter-spacing: 3px; margin-top: 4px; }
+  .ring .cap   { position: absolute; left: 0; right: 0; bottom: -40px; text-align: center;
+                 font-size: 32px; font-weight: 700; }
+
+  .coolant { margin-top: 70px; letter-spacing: 3px; opacity: .9; }
+  .coolant .lab { opacity: .55; font-size: 24px; margin-right: 10px; }
+  .coolant .val { font-weight: 700; font-size: 32px; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="clock" id="clock">--:--</div>
+    <div class="date" id="date"></div>
+
+    <div class="rings">
+      <div class="ring">
+        <svg viewBox="0 0 120 120">
+          <circle class="track" cx="60" cy="60" r="52"></circle>
+          <circle class="bar" id="cpuBar" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="center"><div class="pct"><span id="cpuLoad">--</span><span class="u">%</span></div><div class="name">CPU</div></div>
+        <div class="cap" id="cpuTemp">--°</div>
+      </div>
+      <div class="ring">
+        <svg viewBox="0 0 120 120">
+          <circle class="track" cx="60" cy="60" r="52"></circle>
+          <circle class="bar" id="gpuBar" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="center"><div class="pct"><span id="gpuLoad">--</span><span class="u">%</span></div><div class="name">GPU</div></div>
+        <div class="cap" id="gpuTemp">--°</div>
+      </div>
+    </div>
+
+    <div class="coolant"><span class="lab">COOLANT</span><span class="val" id="coolant">--°</span></div>
+  </div>
+<script>
+  const C = 2 * Math.PI * 52; // ring circumference
+
+  function mix(a, b, f) {
+    const pa = [1,3,5].map(i => parseInt(a.substr(i,2),16)),
+          pb = [1,3,5].map(i => parseInt(b.substr(i,2),16));
+    return '#' + pa.map((v,i)=>Math.round(v+(pb[i]-v)*f).toString(16).padStart(2,'0')).join('');
+  }
+  function ramp(stops, t) {
+    if (t == null) return '#666';
+    if (t <= stops[0][0]) return stops[0][1];
+    if (t >= stops[stops.length-1][0]) return stops[stops.length-1][1];
+    for (let i=0;i<stops.length-1;i++){const[lo,c1]=stops[i],[hi,c2]=stops[i+1];if(t<=hi)return mix(c1,c2,(t-lo)/(hi-lo));}
+    return stops[stops.length-1][1];
+  }
+  const tempColor = t => ramp([[30,'#00b4ff'],[50,'#2ee04b'],[65,'#ffb400'],[80,'#ff2828']], t);
+  const loadColor = p => ramp([[0,'#2ee04b'],[60,'#ffb400'],[88,'#ff2828']], p);
+
+  function setRing(barId, pctId, p) {
+    const bar = document.getElementById(barId), txt = document.getElementById(pctId);
+    const v = (p == null) ? 0 : Math.max(0, Math.min(100, p));
+    bar.style.strokeDasharray = C;
+    bar.style.strokeDashoffset = C * (1 - v/100);
+    bar.style.stroke = loadColor(p);
+    txt.textContent = (p == null) ? '--' : Math.round(p);
+  }
+  function setTemp(id, t) {
+    const e = document.getElementById(id);
+    e.innerHTML = (t == null ? '--' : Math.round(t)) + '°';
+    e.style.color = tempColor(t);
+  }
+
+  function tick() {
+    const d = new Date();
+    document.getElementById('clock').textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('date').textContent = d.toLocaleDateString([], {weekday:'short', day:'numeric', month:'short'});
+  }
+  async function poll() {
+    try {
+      const d = await (await fetch('/data.json', {cache:'no-store'})).json();
+      setRing('cpuBar', 'cpuLoad', d.cpuLoad);
+      setRing('gpuBar', 'gpuLoad', d.gpuLoad);
+      setTemp('cpuTemp', d.cpu);
+      setTemp('gpuTemp', d.gpu);
+      setTemp('coolant', d.coolant);
+    } catch (e) {}
+  }
+  tick(); poll(); setInterval(tick, 1000); setInterval(poll, 2000);
+</script>
+</body>
+</html>

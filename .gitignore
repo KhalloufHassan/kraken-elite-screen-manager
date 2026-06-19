@@ -1,0 +1,34 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.dll
+*.pdb
+
+# .NET
+project.lock.json
+*.nuget.props
+*.nuget.targets
+
+# IDEs
+.idea/
+.vs/
+*.user
+*.suo
+*.DotSettings.user
+
+# Rider / ReSharper caches
+_ReSharper*/
+*.[Rr]e[Ss]harper
+
+# Local agent memory / session state (not part of the project)
+.claude/
+
+# OS junk
+.DS_Store
+Thumbs.db
+*~
+
+# Runtime config lives in ~/.config/kraken-elite-screen-manager, not the repo

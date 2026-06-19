@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KrakenEliteScreenManager.MainWindow"
+        Title="Kraken Dashboard"
+        Width="820" Height="620"
+        MinWidth="640" MinHeight="420"
+        Background="#1E1E1E">
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top" Background="#2D2D2D" Padding="8">
+      <StackPanel Spacing="8">
+        <!-- Row 1: mode + service controls -->
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <TextBlock Text="Mode:" VerticalAlignment="Center" Foreground="#CCCCCC" />
+          <RadioButton x:Name="ModeGif" GroupName="mode" Content="GIF Loop" IsChecked="True"
+                       IsCheckedChanged="Mode_Changed" VerticalAlignment="Center" />
+          <RadioButton x:Name="ModeDashboard" GroupName="mode" Content="Dashboard"
+                       IsCheckedChanged="Mode_Changed" VerticalAlignment="Center" />
+          <RadioButton x:Name="ModeCoolant" GroupName="mode" Content="Stock Coolant"
+                       IsCheckedChanged="Mode_Changed" VerticalAlignment="Center" />
+          <Button x:Name="ApplyBtn" Content="✓ Apply &amp; Start" Click="ApplyBtn_Click" />
+          <Button x:Name="StopBtn" Content="■ Stop service" Click="StopBtn_Click" />
+        </StackPanel>
+        <!-- Row 2: GIF picker (only relevant for GIF Loop) -->
+        <StackPanel x:Name="GifPicker" Orientation="Horizontal" Spacing="8">
+          <TextBox x:Name="SearchBox" Width="300" Watermark="Search GIPHY for a background…"
+                   KeyDown="SearchBox_KeyDown" />
+          <Button x:Name="SearchBtn" Content="Search" Click="SearchBtn_Click" />
+          <Button x:Name="LocalBtn" Content="Local GIF…" Click="LocalBtn_Click" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Background="#111111" Padding="8,4">
+      <TextBlock x:Name="StatusText" Foreground="#AAAAAA" FontSize="12"
+                 Text="Choose a mode, pick a GIF, then Apply &amp; Start." />
+    </Border>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <WrapPanel x:Name="ThumbnailPanel" Orientation="Horizontal" ItemWidth="120" ItemHeight="100" Margin="4" />
+    </ScrollViewer>
+
+  </DockPanel>
+</Window>
