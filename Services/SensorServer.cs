@@ -55,13 +55,18 @@ public sealed class SensorServer : IDisposable
         var path = ctx.Request.Url?.AbsolutePath ?? "/";
         if (path == "/data.json")
         {
+            var net = _stats.Network();
             var payload = JsonSerializer.Serialize(new
             {
                 coolant = _temps.Read(TempSource.Coolant),
                 cpu = _temps.Read(TempSource.Cpu),
-                gpu = _stats.GpuTemp(),       // RTX 3090 (nvidia-smi)
-                cpuLoad = _stats.CpuLoad(),    // % over the poll interval
-                gpuLoad = _stats.GpuLoad(),    // RTX 3090 utilization %
+                gpu = _stats.GpuTemp(),        // GPU temp (nvidia-smi or amdgpu)
+                cpuLoad = _stats.CpuLoad(),     // % over the poll interval
+                gpuLoad = _stats.GpuLoad(),     // GPU utilization %
+                ram = _stats.RamLoad(),         // RAM in use %
+                gpuMem = _stats.GpuMem(),       // GPU VRAM in use % (nvidia)
+                netRx = net.rxKbps,             // network down, KB/s
+                netTx = net.txKbps,             // network up, KB/s
             });
             ctx.Response.Headers["Cache-Control"] = "no-store";
             Write(ctx, "application/json", Encoding.UTF8.GetBytes(payload));

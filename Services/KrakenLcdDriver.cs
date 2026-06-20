@@ -173,12 +173,14 @@ public sealed class KrakenLcdDriver : IDisposable
         finally { _hid.ReadTimeout = saved; }
     }
 
-    private void BulkWrite(byte[] data)
+    private void BulkWrite(byte[] data) => BulkWrite(data, BulkChunk);
+
+    private void BulkWrite(byte[] data, int chunk)
     {
         if (_bulkOut is null) throw new InvalidOperationException("Bulk endpoint not open.");
-        for (int i = 0; i < data.Length; i += BulkChunk)
+        for (int i = 0; i < data.Length; i += chunk)
         {
-            int len = Math.Min(BulkChunk, data.Length - i);
+            int len = Math.Min(chunk, data.Length - i);
             var err = _bulkOut.Write(data, i, len, BulkTimeoutMs, out int sent);
             if (err != Error.Success || sent != len)
                 throw new InvalidOperationException($"Bulk write failed: {err} ({sent}/{len} bytes).");
@@ -283,42 +285,60 @@ public sealed class KrakenLcdDriver : IDisposable
         _activeBucket = bucketIndex;
     }
 
-    private bool _buffersInit;                 // DeleteAllBuckets once, on the first frame
-    private const int DbSlotUnits = 2048;      // memory gap between the two buffers (units)
+    // --- raw BGR888 streaming (CAM-parity, asset mode 0x09) ------------------
+    // Reverse-engineered from a USB capture of NZXT CAM driving the 300c: stream a
+    // full 640x640 BGR888 frame to the bulk endpoint behind a 20-byte header, with
+    // NO per-frame bucket setup/switch — that's how CAM stays smooth without wedging.
+
+    private static readonly byte[] StreamLut1 =
+        new byte[] { 0x72, 0x01, 0x01, 0x00 }.Concat(Enumerable.Repeat((byte)0x3f, 41)).ToArray();
+    private static readonly byte[] StreamLut2 =
+        new byte[] { 0x72, 0x02, 0x01, 0x01 }.Concat(Enumerable.Repeat((byte)0x1f, 41)).ToArray();
 
     /// <summary>
-    /// Push a frame double-buffered: write the off-screen bucket, then switch to it
-    /// (the live frame is never torn down — flicker-free). For Dashboard live updates.
-    /// Ping-pongs buckets 1 and 2 — bucket 0 is reserved for the liquid display, and
-    /// using it as a buffer renders garbage. This is the proven crisp path.
+    /// Put the LCD into CAM's live-streaming mode via the one-time HID init handshake
+    /// captured from NZXT CAM. Call once, then PushFrameRaw() repeatedly.
     /// </summary>
-    public void PushFrameDoubleBuffered(byte[] data, byte assetMode = 0x01)
+    public void EnterStreamingMode(int percent = 80)
     {
-        var lenLe = BitConverter.GetBytes((uint)data.Length);
-        var header = BulkMagic.Concat(new byte[] { assetMode, 0x00, 0x00, 0x00 }).Concat(lenLe).ToArray();
-
-        if (!_buffersInit)
-        {
-            DeleteAllBuckets();   // clean slate once; first frame briefly shows liquid
-            _buffersInit = true;
-            _activeBucket = -1;
-        }
-
-        int target = _activeBucket == 1 ? 2 : 1;   // ping-pong buckets 1/2; bucket 0 = liquid
-        int slot = target - 1;                      // 0 or 1 -> memory slot
-        var memStart = BitConverter.GetBytes((ushort)(slot * DbSlotUnits));
-        int dataUnits = (int)Math.Ceiling((header.Length + data.Length) / 1024.0);
-        var sizeBytes = BitConverter.GetBytes((ushort)dataUnits);
-
+        Drain();
+        WriteThenRead(0x10, 0x02);
+        WriteThenRead(0x70, 0x02, 0x01, 0xb8, 0x0b);
+        WriteThenRead(0x74, 0x01);
+        WriteThenRead(0x36, 0x04);
+        WriteThenRead(0x30, 0x01);
         WriteThenRead(0x36, 0x03);
-        DeleteBucket(target);                       // reclaim the inactive buffer
-        SetupBucket(target, target + 1, memStart, sizeBytes);
-        WriteThenRead(0x36, 0x01, (byte)target);
+        WriteThenRead(0x30, 0x02, 0x00, 0x00, 0x00, 0x00, 0x1e);
+        WriteThenRead(0x38, 0x01, 0x02);                                 // switch to liquid (clears)
+        for (byte i = 0; i < 16; i++) WriteThenRead(0x32, 0x02, i);      // delete all 16 buckets
+        WriteThenRead(0x30, 0x02, 0x01, (byte)Math.Clamp(percent, 0, 100), 0x00, 0x00, 0x00, 0x1e);
+        Drain();
+    }
+
+    /// <summary>
+    /// Stream one full 640x640 RGB888 frame (1,228,800 bytes) — CAM asset mode 0x09.
+    /// Per-frame: LUTs -> start -> bulk header+data -> end. No bucket setup/switch.
+    /// </summary>
+    private const int StreamUrb = 245760; // CAM sends frame data in 245,760-byte bulk transfers
+
+    public void PushFrameRaw(byte[] rgb888)
+    {
+        const int expected = Width * Height * 3;
+        if (rgb888.Length != expected)
+            throw new ArgumentException($"expected {expected} RGB888 bytes, got {rgb888.Length}");
+
+        // ACK each HID command (flow control) so the bulk data never races ahead of "start".
+        Drain();
+        WriteThenRead(StreamLut1);
+        WriteThenRead(StreamLut2);
+        WriteThenRead(0x36, 0x01, 0x00, 0x01, 0x09);                    // start, asset mode 0x09
+
+        var lenLe = BitConverter.GetBytes((uint)rgb888.Length);
+        var header = BulkMagic.Concat(new byte[] { 0x09, 0x00, 0x00, 0x00 }).Concat(lenLe).ToArray();
         BulkWrite(header);
-        BulkWrite(data);
-        Write(0x36, 0x02);
-        SwitchBucket(target);
-        _activeBucket = target;
+        BulkWrite(rgb888, StreamUrb);                                   // match CAM's 245,760-byte transfers
+
+        WriteThenRead(0x36, 0x02);                                      // end
     }
 
     // --- bucket helpers (ported from liquidctl) ------------------------------

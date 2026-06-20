@@ -19,13 +19,15 @@ public sealed class SystemStats
     private readonly object _gate = new();
 
     private long _prevIdle = -1, _prevTotal;
+    private long _prevRx = -1, _prevTx;
+    private DateTime _netStamp;
 
     private readonly GpuKind _gpu;
     private readonly string? _amdTemp;   // hwmon temp1_input (milli-°C)
     private readonly string? _amdBusy;    // device/gpu_busy_percent (0-100)
 
     private DateTime _nvStamp = DateTime.MinValue;
-    private double? _nvTemp, _nvLoad;
+    private double? _nvTemp, _nvLoad, _nvMem;
 
     public SystemStats()
     {
@@ -78,6 +80,65 @@ public sealed class SystemStats
         catch { return null; }
     }
 
+    /// <summary>RAM in use (%) from /proc/meminfo.</summary>
+    public double? RamLoad()
+    {
+        try
+        {
+            long total = 0, avail = 0;
+            foreach (var line in File.ReadLines("/proc/meminfo"))
+            {
+                if (line.StartsWith("MemTotal:")) total = MemKb(line);
+                else if (line.StartsWith("MemAvailable:")) { avail = MemKb(line); break; }
+            }
+            return total > 0 ? Math.Clamp(100.0 * (total - avail) / total, 0, 100) : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Network throughput (KB/s rx, tx) over the interval since the previous call.</summary>
+    public (double rxKbps, double txKbps) Network()
+    {
+        try
+        {
+            long rx = 0, tx = 0;
+            foreach (var line in File.ReadLines("/proc/net/dev"))
+            {
+                int c = line.IndexOf(':');
+                if (c < 0) continue;
+                if (line[..c].Trim() == "lo") continue;
+                var n = line[(c + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (n.Length < 9) continue;
+                if (long.TryParse(n[0], out var r)) rx += r;
+                if (long.TryParse(n[8], out var t)) tx += t;
+            }
+            lock (_gate)
+            {
+                var now = DateTime.UtcNow;
+                if (_prevRx < 0) { _prevRx = rx; _prevTx = tx; _netStamp = now; return (0, 0); }
+                double secs = (now - _netStamp).TotalSeconds;
+                if (secs <= 0) secs = 1;
+                double rxk = (rx - _prevRx) / secs / 1024.0, txk = (tx - _prevTx) / secs / 1024.0;
+                _prevRx = rx; _prevTx = tx; _netStamp = now;
+                return (Math.Max(0, rxk), Math.Max(0, txk));
+            }
+        }
+        catch { return (0, 0); }
+    }
+
+    public double? GpuMem()
+    {
+        if (_gpu != GpuKind.Nvidia) return null;
+        Nvidia();
+        return _nvMem;
+    }
+
+    private static long MemKb(string line)
+    {
+        var p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2 && long.TryParse(p[1], out var v) ? v : 0;
+    }
+
     public double? GpuLoad() => _gpu switch
     {
         GpuKind.Nvidia => Nvidia().load,
@@ -101,10 +162,13 @@ public sealed class SystemStats
             if ((DateTime.UtcNow - _nvStamp).TotalMilliseconds >= 900)
             {
                 _nvStamp = DateTime.UtcNow;
-                var f = RunNvidia("--query-gpu=temperature.gpu,utilization.gpu --format=csv,noheader,nounits")
+                var f = RunNvidia("--query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits")
                     ?.Split(',', StringSplitOptions.TrimEntries) ?? Array.Empty<string>();
                 _nvTemp = f.Length > 0 && double.TryParse(f[0], NumberStyles.Any, CultureInfo.InvariantCulture, out var t) ? t : null;
                 _nvLoad = f.Length > 1 && double.TryParse(f[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var u) ? u : null;
+                double? mu = f.Length > 2 && double.TryParse(f[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var a) ? a : null;
+                double? mt = f.Length > 3 && double.TryParse(f[3], NumberStyles.Any, CultureInfo.InvariantCulture, out var b) ? b : null;
+                _nvMem = mu.HasValue && mt is > 0 ? Math.Clamp(mu.Value / mt.Value * 100, 0, 100) : null;
             }
             return (_nvTemp, _nvLoad);
         }

@@ -1,44 +1,283 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="KrakenEliteScreenManager.MainWindow"
-        Title="Kraken Dashboard"
-        Width="820" Height="620"
-        MinWidth="640" MinHeight="420"
-        Background="#1E1E1E">
+        Title="Kraken Elite Screen Manager"
+        Icon="/assets/icon.png"
+        Width="900" Height="720" MinWidth="760" MinHeight="600"
+        Background="#0E1116">
 
-  <DockPanel>
+  <Window.Styles>
+    <!-- Mode card (RadioButton rendered as a selectable tile) -->
+    <Style Selector="RadioButton.mode">
+      <Setter Property="Margin" Value="5"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="card" Background="#161A22" CornerRadius="14"
+                  BorderBrush="#272E3A" BorderThickness="1" Padding="16,14">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              HorizontalAlignment="Left" VerticalAlignment="Top"/>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.mode:pointerover /template/ Border#card">
+      <Setter Property="BorderBrush" Value="#3C4452"/>
+      <Setter Property="Background" Value="#1A1F28"/>
+    </Style>
+    <Style Selector="RadioButton.mode:checked /template/ Border#card">
+      <Setter Property="Background" Value="#0F2730"/>
+      <Setter Property="BorderBrush" Value="#22D3EE"/>
+    </Style>
 
-    <Border DockPanel.Dock="Top" Background="#2D2D2D" Padding="8">
-      <StackPanel Spacing="8">
-        <!-- Row 1: mode + service controls -->
-        <StackPanel Orientation="Horizontal" Spacing="12">
-          <TextBlock Text="Mode:" VerticalAlignment="Center" Foreground="#CCCCCC" />
-          <RadioButton x:Name="ModeGif" GroupName="mode" Content="GIF Loop" IsChecked="True"
-                       IsCheckedChanged="Mode_Changed" VerticalAlignment="Center" />
-          <RadioButton x:Name="ModeDashboard" GroupName="mode" Content="Dashboard"
-                       IsCheckedChanged="Mode_Changed" VerticalAlignment="Center" />
-          <RadioButton x:Name="ModeCoolant" GroupName="mode" Content="Stock Coolant"
-                       IsCheckedChanged="Mode_Changed" VerticalAlignment="Center" />
-          <Button x:Name="ApplyBtn" Content="✓ Apply &amp; Start" Click="ApplyBtn_Click" />
-          <Button x:Name="StopBtn" Content="■ Stop service" Click="StopBtn_Click" />
+    <!-- Buttons -->
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#22D3EE"/>
+      <Setter Property="Foreground" Value="#06121A"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="20,11"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#4FE3F5"/>
+      <Setter Property="Foreground" Value="#06121A"/>
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="#1B2029"/>
+      <Setter Property="Foreground" Value="#E6EAF0"/>
+      <Setter Property="BorderBrush" Value="#2E3644"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="16,11"/>
+    </Style>
+    <Style Selector="Button.pick">
+      <Setter Property="Background" Value="#16323A"/>
+      <Setter Property="Foreground" Value="#A8EEF8"/>
+      <Setter Property="BorderBrush" Value="#22D3EE"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="16,10"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style Selector="TextBox">
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Background" Value="#12161D"/>
+      <Setter Property="BorderBrush" Value="#2A313D"/>
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="#13171F"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="BorderBrush" Value="#1F2530"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="#6E7889"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="2,0,0,8"/>
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="22,18">
+
+    <!-- Header -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
+      <StackPanel Grid.Column="0" Spacing="2">
+        <TextBlock Text="Kraken Elite Screen Manager" FontSize="22" FontWeight="Bold" Foreground="#F2F5FA"/>
+        <TextBlock Text="NZXT Kraken 2023 Elite · Linux" FontSize="12" Foreground="#6E7889"/>
+      </StackPanel>
+      <Button x:Name="PreviewToggle" Grid.Column="1" Classes="ghost" Content="🙈 Hide preview"
+              Click="PreviewToggle_Click" VerticalAlignment="Center" Margin="0,0,10,0"/>
+      <Border Grid.Column="2" VerticalAlignment="Center" Background="#12161D" CornerRadius="20"
+              BorderBrush="#262D39" BorderThickness="1" Padding="14,7">
+        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+          <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="#6E7889" VerticalAlignment="Center"/>
+          <TextBlock x:Name="StatusPillText" Text="checking…" Foreground="#C2C9D4" FontSize="12.5"
+                     FontWeight="SemiBold" VerticalAlignment="Center"/>
         </StackPanel>
-        <!-- Row 2: GIF picker (only relevant for GIF Loop) -->
-        <StackPanel x:Name="GifPicker" Orientation="Horizontal" Spacing="8">
-          <TextBox x:Name="SearchBox" Width="300" Watermark="Search GIPHY for a background…"
-                   KeyDown="SearchBox_KeyDown" />
-          <Button x:Name="SearchBtn" Content="Search" Click="SearchBtn_Click" />
-          <Button x:Name="LocalBtn" Content="Local GIF…" Click="LocalBtn_Click" />
-        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Live preview (pinned below the header, hidable) -->
+    <Border DockPanel.Dock="Top" x:Name="PreviewPanel" Classes="panel" Padding="12" Margin="0,0,0,14">
+      <StackPanel HorizontalAlignment="Center" Spacing="8">
+        <Border Width="200" Height="200" CornerRadius="100" ClipToBounds="True" Background="#000"
+                BorderBrush="#272E3A" BorderThickness="1">
+          <Image x:Name="PreviewImage" Width="200" Height="200" Stretch="UniformToFill"/>
+        </Border>
+        <TextBlock x:Name="PreviewHint" HorizontalAlignment="Center" Foreground="#7A8494" FontSize="11"
+                   Text="live preview of current settings"/>
       </StackPanel>
     </Border>
 
-    <Border DockPanel.Dock="Bottom" Background="#111111" Padding="8,4">
-      <TextBlock x:Name="StatusText" Foreground="#AAAAAA" FontSize="12"
-                 Text="Choose a mode, pick a GIF, then Apply &amp; Start." />
+    <!-- Action bar (bottom) -->
+    <Border DockPanel.Dock="Bottom" Classes="panel" Padding="16,12" Margin="0,16,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock x:Name="StatusText" Grid.Column="0" VerticalAlignment="Center"
+                   Foreground="#8A93A3" FontSize="12.5" TextWrapping="Wrap"
+                   Text="Choose a mode, then Apply &amp; Start."/>
+        <Button x:Name="StopBtn" Grid.Column="1" Classes="ghost" Content="■ Stop" Click="StopBtn_Click" Margin="0,0,10,0"/>
+        <Button x:Name="ApplyBtn" Grid.Column="2" Classes="primary" Content="✓ Apply &amp; Start" Click="ApplyBtn_Click"/>
+      </Grid>
     </Border>
 
+    <!-- Main content -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-      <WrapPanel x:Name="ThumbnailPanel" Orientation="Horizontal" ItemWidth="120" ItemHeight="100" Margin="4" />
+      <StackPanel Spacing="18">
+
+        <!-- Modes -->
+        <StackPanel>
+          <TextBlock Classes="section" Text="MODE"/>
+          <UniformGrid Columns="3">
+            <RadioButton x:Name="ModeGif" Classes="mode" GroupName="mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel Spacing="6">
+                <TextBlock Text="🖼" FontSize="24"/>
+                <TextBlock Text="GIF Loop" FontWeight="SemiBold" FontSize="14" Foreground="#E6EAF0"/>
+                <TextBlock Text="Your GIF, looped full-screen" Foreground="#7A8494" FontSize="11" TextWrapping="Wrap"/>
+              </StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="ModeDashboard" Classes="mode" GroupName="mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel Spacing="6">
+                <TextBlock Text="📊" FontSize="24"/>
+                <TextBlock Text="Dashboard" FontWeight="SemiBold" FontSize="14" Foreground="#E6EAF0"/>
+                <TextBlock Text="Live clock, load &amp; temps" Foreground="#7A8494" FontSize="11" TextWrapping="Wrap"/>
+              </StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="ModeGifDash" Classes="mode" GroupName="mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel Spacing="6">
+                <TextBlock Text="🎬" FontSize="24"/>
+                <TextBlock Text="GIF + Dashboard" FontWeight="SemiBold" FontSize="14" Foreground="#E6EAF0"/>
+                <TextBlock Text="Live stats over your GIF" Foreground="#7A8494" FontSize="11" TextWrapping="Wrap"/>
+              </StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="ModeWeb" Classes="mode" GroupName="mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel Spacing="6">
+                <TextBlock Text="🌐" FontSize="24"/>
+                <TextBlock Text="Web Page" FontWeight="SemiBold" FontSize="14" Foreground="#E6EAF0"/>
+                <TextBlock Text="Any URL / YouTube loop" Foreground="#7A8494" FontSize="11" TextWrapping="Wrap"/>
+              </StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="ModeVideo" Classes="mode" GroupName="mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel Spacing="6">
+                <TextBlock Text="🎥" FontSize="24"/>
+                <TextBlock Text="Video" FontWeight="SemiBold" FontSize="14" Foreground="#E6EAF0"/>
+                <TextBlock Text="Loop a local video file" Foreground="#7A8494" FontSize="11" TextWrapping="Wrap"/>
+              </StackPanel>
+            </RadioButton>
+            <RadioButton x:Name="ModeCoolant" Classes="mode" GroupName="mode" IsCheckedChanged="Mode_Changed">
+              <StackPanel Spacing="6">
+                <TextBlock Text="💧" FontSize="24"/>
+                <TextBlock Text="Stock Coolant" FontWeight="SemiBold" FontSize="14" Foreground="#E6EAF0"/>
+                <TextBlock Text="Built-in NZXT temp screen" Foreground="#7A8494" FontSize="11" TextWrapping="Wrap"/>
+              </StackPanel>
+            </RadioButton>
+          </UniformGrid>
+        </StackPanel>
+
+        <!-- GIF picker (GIF modes only) -->
+        <StackPanel x:Name="GifPicker">
+          <TextBlock Classes="section" Text="BACKGROUND GIF"/>
+          <Border Classes="panel" Padding="16">
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button x:Name="LocalBtn" Grid.Column="0" Classes="pick" Content="📁  Choose from file…" Click="LocalBtn_Click"/>
+                <TextBox x:Name="SearchBox" Grid.Column="1" Margin="10,0" Watermark="…or search GIPHY"
+                         KeyDown="SearchBox_KeyDown"/>
+                <Button x:Name="SearchBtn" Grid.Column="2" Classes="ghost" Content="Search" Click="SearchBtn_Click"/>
+              </Grid>
+              <TextBlock x:Name="SelectedLabel" Text="No GIF selected." Foreground="#7A8494" FontSize="12"/>
+              <ScrollViewer Height="210" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <WrapPanel x:Name="ThumbnailPanel" Orientation="Horizontal"/>
+              </ScrollViewer>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Web page (Web Page mode only) -->
+        <StackPanel x:Name="WebPanel">
+          <TextBlock Classes="section" Text="WEB PAGE"/>
+          <Border Classes="panel" Padding="16">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox x:Name="WebUrlBox" Grid.Column="0"
+                         Watermark="https://…  ·  a YouTube link  ·  or a local .html path"/>
+                <Button x:Name="WebFileBtn" Grid.Column="1" Classes="ghost" Content="HTML file…"
+                        Click="WebFileBtn_Click" Margin="10,0,0,0"/>
+              </Grid>
+              <TextBlock Foreground="#7A8494" FontSize="11.5" TextWrapping="Wrap"
+                         Text="Paste a YouTube link and it auto-loops, muted and chrome-free. Or point at any URL / your own HTML page — it streams to the LCD."/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Video (Video mode only) -->
+        <StackPanel x:Name="VideoPanel">
+          <TextBlock Classes="section" Text="VIDEO FILE"/>
+          <Border Classes="panel" Padding="16">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox x:Name="VideoPathBox" Grid.Column="0" Watermark="path to a video file (.mp4, .mkv, .webm, .mov)"/>
+                <Button x:Name="VideoFileBtn" Grid.Column="1" Classes="pick" Content="🎬  Choose video…"
+                        Click="VideoFileBtn_Click" Margin="10,0,0,0"/>
+              </Grid>
+              <TextBlock Foreground="#7A8494" FontSize="11.5" TextWrapping="Wrap"
+                         Text="Decoded and looped with FFmpeg (any codec). Requires ffmpeg installed."/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- GIF legibility (GIF + Dashboard only) -->
+        <StackPanel x:Name="LegibilityPanel">
+          <TextBlock Classes="section" Text="GIF LEGIBILITY"/>
+          <Border Classes="panel" Padding="18,16">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Style" Foreground="#C2C9D4" VerticalAlignment="Center"/>
+              <ComboBox x:Name="OverlayStyleCombo" Grid.Row="0" Grid.Column="1" Width="280" HorizontalAlignment="Left">
+                <ComboBoxItem>Frosted chips</ComboBoxItem>
+                <ComboBoxItem>Dim the GIF</ComboBoxItem>
+                <ComboBoxItem>Center vignette</ComboBoxItem>
+                <ComboBoxItem>None (shadow only)</ComboBoxItem>
+              </ComboBox>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Dimming" Foreground="#C2C9D4" VerticalAlignment="Center" Margin="0,14,0,0"/>
+              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="12" Margin="0,14,0,0">
+                <Slider x:Name="DimSlider" Minimum="0" Maximum="100" Value="45" Width="220" VerticalAlignment="Center"/>
+                <TextBlock x:Name="DimValue" Text="45%" Foreground="#A8EEF8" Width="42" VerticalAlignment="Center" FontWeight="SemiBold"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+
+        <!-- Settings -->
+        <StackPanel>
+          <TextBlock Classes="section" Text="DISPLAY"/>
+          <Border Classes="panel" Padding="18,16">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" >
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Brightness" Foreground="#C2C9D4" VerticalAlignment="Center"/>
+              <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="12" Width="280">
+                <Slider x:Name="BrightnessSlider" Minimum="10" Maximum="100" Value="80" Width="220" VerticalAlignment="Center"/>
+                <TextBlock x:Name="BrightnessValue" Text="80%" Foreground="#A8EEF8" Width="42"
+                           VerticalAlignment="Center" FontWeight="SemiBold"/>
+              </StackPanel>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Rotation" Foreground="#C2C9D4" VerticalAlignment="Center" Margin="0,14,0,0"/>
+              <ComboBox x:Name="RotationCombo" Grid.Row="1" Grid.Column="1" Width="280" HorizontalAlignment="Left" Margin="0,14,0,0">
+                <ComboBoxItem>0°</ComboBoxItem>
+                <ComboBoxItem>90°</ComboBoxItem>
+                <ComboBoxItem>180°</ComboBoxItem>
+                <ComboBoxItem>270°</ComboBoxItem>
+              </ComboBox>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Frame rate" Foreground="#C2C9D4" VerticalAlignment="Center" Margin="0,14,0,0"/>
+              <ComboBox x:Name="FpsCombo" Grid.Row="2" Grid.Column="1" Width="280" HorizontalAlignment="Left" Margin="0,14,0,0">
+                <ComboBoxItem>Max (uncapped)</ComboBoxItem>
+                <ComboBoxItem>60 fps</ComboBoxItem>
+                <ComboBoxItem>30 fps</ComboBoxItem>
+                <ComboBoxItem>24 fps</ComboBoxItem>
+                <ComboBoxItem>15 fps</ComboBoxItem>
+              </ComboBox>
+            </Grid>
+          </Border>
+        </StackPanel>
+
+      </StackPanel>
     </ScrollViewer>
 
   </DockPanel>

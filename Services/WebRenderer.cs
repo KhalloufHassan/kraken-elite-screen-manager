@@ -22,22 +22,38 @@ public sealed class WebRenderer : IAsyncDisposable
     public async Task StartAsync(string target)
     {
         _pw = await Playwright.CreateAsync();
-        _browser = await _pw.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+        _browser = await _pw.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        {
+            Headless = true,
+            // Let videos (YouTube embeds, <video>) play without a user gesture.
+            Args = new[] { "--autoplay-policy=no-user-gesture-required" },
+        });
         _page = await _browser.NewPageAsync(new BrowserNewPageOptions
         {
             ViewportSize = new ViewportSize { Width = Size, Height = Size },
             DeviceScaleFactor = 1,
         });
-        await _page.GotoAsync(ResolveTarget(target), new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
+        await GotoAsync(target);
     }
 
-    public async Task<byte[]> CaptureAsync()
+    /// <summary>Re-navigate the existing page to a new target (reuses the browser).</summary>
+    public async Task GotoAsync(string target)
+    {
+        if (_page is null) throw new InvalidOperationException("Renderer not started.");
+        // 'Load' rather than 'NetworkIdle' — streaming/video pages never go idle.
+        await _page.GotoAsync(ResolveTarget(target), new PageGotoOptions { WaitUntil = WaitUntilState.Load, Timeout = 20000 });
+    }
+
+    /// <summary>Capture the page. transparent=true → PNG with the page background omitted
+    /// (alpha preserved) for compositing over a GIF; otherwise fast opaque JPEG.</summary>
+    public async Task<byte[]> CaptureAsync(bool transparent = false)
     {
         if (_page is null) throw new InvalidOperationException("Renderer not started.");
         return await _page.ScreenshotAsync(new PageScreenshotOptions
         {
-            Type = ScreenshotType.Jpeg,
-            Quality = 85,
+            Type = transparent ? ScreenshotType.Png : ScreenshotType.Jpeg,
+            Quality = transparent ? null : 85,   // Quality is invalid for PNG
+            OmitBackground = transparent,
             Clip = new Clip { X = 0, Y = 0, Width = Size, Height = Size },
         });
     }

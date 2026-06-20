@@ -11,18 +11,37 @@ It has two parts:
 - a **GUI config editor** — pick what the screen shows, and
 - a **background systemd user service** — keeps that running across reboots, with or without the GUI.
 
-## Three modes
-- **GIF Loop** — a GIF you pick (GIPHY search or a local file) is uploaded once and the cooler's
+## Six modes
+- **GIF Loop** — a GIF you pick (local file or GIPHY search) is uploaded once and the cooler's
   firmware **loops it natively**, full-speed and smooth. Just the GIF, nothing drawn over it.
-- **Dashboard** — a live system dashboard rendered by headless Chromium and streamed to the screen
-  flicker-free (double-buffered): clock + date, two **KDE-style rings** for CPU and GPU **load**, the
-  CPU/GPU **temps** under each ring, and coolant temp — all color-graded.
+- **Dashboard** — a live system dashboard **streamed in real time** (raw full frames, smooth, no
+  flicker): clock + date, two **KDE-style rings** for CPU and GPU **load**, the CPU/GPU **temps**
+  under each ring, and coolant temp — all color-graded green→yellow→red.
+- **GIF + Dashboard** — the live dashboard composited **on top of your animating GIF**, with a
+  legibility option (frosted chips / dim / vignette + a dimming slider).
+- **Web Page** — stream **any URL or your own local HTML page** to the LCD. A local page is served
+  same-origin so it can `fetch('/data.json')` for live sensors (below). YouTube links auto-embed and
+  loop, muted (note: needs a codec-capable browser; the bundled Chromium can't play YouTube).
+- **Video** — loop a **local video file** (mp4/mkv/webm/…), decoded by **FFmpeg** (any codec).
 - **Stock Coolant** — the built-in NZXT liquid-temperature screen.
+
+The GUI shows a **live preview** of what's on the LCD (the service writes the current frame to
+`preview.png`, which the editor displays).
+
+Live streaming uses NZXT CAM's own LCD protocol (asset mode `0x09`, full-frame BGR888), reverse-
+engineered from a USB capture — so the 640×640 screen updates smoothly, which liquidctl can't do on
+this device. A **frame-rate cap** (Display settings; default *Max*) limits CPU/USB load if you want.
+
+### Live sensor feed
+In Dashboard / GIF+Dashboard / local Web Page modes, sensors are served at
+`http://localhost:9234/data.json` for your own pages:
+`coolant`, `cpu`, `gpu` (°C), `cpuLoad`, `gpuLoad`, `ram`, `gpuMem` (%), `netRx`, `netTx` (KB/s).
 
 ## Requirements
 - **.NET 10 SDK** — <https://dotnet.microsoft.com/download/dotnet/10.0>
 - A **systemd**-based Linux (the service uses `systemctl --user`).
 - Optional: `nvidia-smi` for NVIDIA GPU stats; AMD GPUs are read from `/sys` automatically.
+- Optional, for **Video mode**: `ffmpeg` (e.g. `sudo dnf install ffmpeg`).
 - Optional, for **GIPHY search** only: a free GIPHY API key. Get one at
   <https://developers.giphy.com> and export it before launching the GUI:
   ```bash
@@ -71,10 +90,14 @@ Everything lives in one XDG directory:
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
-| `Mode` | string | `"Coolant"` | `"GifLoop"` \| `"Dashboard"` \| `"Coolant"` |
-| `RefreshSeconds` | int | `5` | Dashboard stat refresh cadence |
+| `Mode` | string | `"Coolant"` | `GifLoop` \| `Dashboard` \| `GifDashboard` \| `WebPage` \| `Video` \| `Coolant` |
 | `Brightness` | int | `80` | LCD brightness % |
 | `Rotation` | int | `270` | Panel-mount rotation; content is pre-rotated by this. Change if the image is sideways. |
+| `MaxFps` | int | `0` | Streaming frame-rate cap; `0` = uncapped (max) |
+| `WebUrl` | string | `""` | Web Page mode: a URL, YouTube link, or local `.html` path |
+| `VideoFile` | string | `""` | Video mode: path to a local video file |
+| `OverlayStyle` | string | `"Chips"` | GIF+Dashboard legibility: `Chips` \| `Dim` \| `Vignette` \| `None` |
+| `OverlayDim` | int | `45` | Legibility intensity (0–100) |
 
 A missing or malformed file falls back to all-defaults (so a fresh machine just shows the coolant
 screen until you pick a mode).
@@ -115,11 +138,11 @@ The IDE folder (`.idea/`) and build output (`bin/`, `obj/`) are git-ignored; Rid
 solution metadata from the `.slnx` on first open.
 
 ## Notes / limits
-- Firmware 2.x Elite displays **GIF** assets; the firmware loops multi-frame GIFs on its own.
-- Dashboard mode streams at ~4 fps double-buffered (flicker-free). Pushing faster wedges the firmware
-  off the USB bus, so the rate is kept modest on purpose.
-- True live *video* (CAM-style high-fps) isn't implemented — it needs CAM's `0x300c` streaming
-  protocol, which would require a USB capture from a Windows machine.
+- **GIF Loop** uses the firmware's native GIF asset path (uploaded once, looped on-device).
+- **Dashboard** and **GIF + Dashboard** stream full 640×640 BGR888 frames over the bulk endpoint
+  using CAM's `0x09` asset mode — smooth and flicker-free, paced by the render/capture rate.
+- The older bucket-based GIF upload path (what liquidctl uses) only sustained ~4 fps before the
+  firmware wedged; the streaming path replaced it for live content.
 
 ## License
 MIT — see [LICENSE](LICENSE).

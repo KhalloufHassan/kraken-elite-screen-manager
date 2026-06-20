@@ -8,9 +8,10 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: 640px; height: 640px; overflow: hidden;
-    background: radial-gradient(circle at 50% 42%, #14202e 0%, #07090d 70%);
     color: #fff; font-family: "Liberation Sans", "DejaVu Sans", system-ui, sans-serif;
   }
+  /* Background on body only — html stays transparent so over-gif mode composites cleanly. */
+  body { background: radial-gradient(circle at 50% 42%, #14202e 0%, #07090d 70%); }
   .stage { width: 640px; height: 640px; display: flex; flex-direction: column;
            align-items: center; justify-content: center; }
 
@@ -34,12 +35,30 @@
   .coolant { margin-top: 70px; letter-spacing: 3px; opacity: .9; }
   .coolant .lab { opacity: .55; font-size: 24px; margin-right: 10px; }
   .coolant .val { font-weight: 700; font-size: 32px; }
+
+  /* GIF+Dashboard overlay mode: transparent bg + legibility shadow over the GIF */
+  body.over-gif { background: transparent; }
+  body.over-gif .stage { text-shadow: 0 2px 12px rgba(0,0,0,.9), 0 0 3px rgba(0,0,0,.9); }
+  body.over-gif .ring .track { stroke: rgba(255,255,255,.22); }
+  body.over-gif .head { display: flex; flex-direction: column; align-items: center; }
+
+  /* Legibility styles (intensity = --a, set from the ?dim= param) */
+  /* chips: translucent rounded panels behind each group; GIF shows in the gaps */
+  body.over-gif.chips .head    { background: rgba(0,0,0,var(--a)); border-radius: 24px; padding: 14px 34px; }
+  body.over-gif.chips .rings   { background: rgba(0,0,0,var(--a)); border-radius: 28px; padding: 18px 32px 54px; }
+  body.over-gif.chips .coolant { background: rgba(0,0,0,var(--a)); border-radius: 18px; padding: 10px 26px; }
+  /* dim: one uniform veil over the whole GIF */
+  body.over-gif.dim .stage      { background: rgba(0,0,0,var(--a)); }
+  /* vignette: dark center fading to clear edges */
+  body.over-gif.vignette .stage { background: radial-gradient(closest-side, rgba(0,0,0,var(--vc)), rgba(0,0,0,var(--ve))); }
 </style>
 </head>
 <body>
   <div class="stage">
-    <div class="clock" id="clock">--:--</div>
-    <div class="date" id="date"></div>
+    <div class="head">
+      <div class="clock" id="clock">--:--</div>
+      <div class="date" id="date"></div>
+    </div>
 
     <div class="rings">
       <div class="ring">
@@ -77,7 +96,7 @@
     for (let i=0;i<stops.length-1;i++){const[lo,c1]=stops[i],[hi,c2]=stops[i+1];if(t<=hi)return mix(c1,c2,(t-lo)/(hi-lo));}
     return stops[stops.length-1][1];
   }
-  const tempColor = t => ramp([[30,'#00b4ff'],[50,'#2ee04b'],[65,'#ffb400'],[80,'#ff2828']], t);
+  const tempColor = t => ramp([[45,'#2ee04b'],[65,'#ffd400'],[82,'#ff2828']], t); // green→yellow→red
   const loadColor = p => ramp([[0,'#2ee04b'],[60,'#ffb400'],[88,'#ff2828']], p);
 
   function setRing(barId, pctId, p) {
@@ -109,6 +128,17 @@
       setTemp('coolant', d.coolant);
     } catch (e) {}
   }
+  (function () {
+    const p = new URLSearchParams(location.search);
+    if (!p.has('transparent')) return;                       // normal Dashboard mode
+    document.body.classList.add('over-gif');
+    const style = (p.get('style') || 'chips').toLowerCase();
+    if (['chips', 'dim', 'vignette'].includes(style)) document.body.classList.add(style);
+    const dim = Math.max(0, Math.min(100, parseInt(p.get('dim') || '45', 10))) / 100;
+    document.body.style.setProperty('--a', dim);             // chips / uniform-dim alpha
+    document.body.style.setProperty('--vc', Math.min(dim * 1.5, 0.85)); // vignette center
+    document.body.style.setProperty('--ve', dim * 0.18);     // vignette edge
+  })();
   tick(); poll(); setInterval(tick, 1000); setInterval(poll, 2000);
 </script>
 </body>

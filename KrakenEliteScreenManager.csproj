@@ -16,8 +16,12 @@
     <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="LibUsbDotNet" Version="3.0.224" />
     <PackageReference Include="Microsoft.Playwright" Version="1.60.0" />
+    <!-- Override Avalonia's transitive 0.21.2 (GHSA-xrw6-gwf8-vvr9): D-Bus DoS +
+         unhandled SynchronizationContext exception on shutdown. 0.21.3 is the patch. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets/**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="assets/**" Exclude="assets/icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <AvaloniaResource Include="assets/icon.png" />
   </ItemGroup>
 </Project>

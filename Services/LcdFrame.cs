@@ -1,6 +1,4 @@
-using System.IO;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -24,11 +22,12 @@ public static class LcdFrame
         });
     }
 
-    /// <summary>Encode as a single-frame GIF (asset mode 0x01).</summary>
-    public static byte[] ToGif(Image<Rgba32> img)
+    /// <summary>Raw 24bpp pixel buffer in B,G,R order — the format asset mode 0x09 expects (verified on-device).</summary>
+    public static byte[] ToBgr888(Image<Rgba32> img)
     {
-        using var ms = new MemoryStream();
-        img.SaveAsGif(ms, new GifEncoder());
-        return ms.ToArray();
+        using var bgr = img.CloneAs<Bgr24>();
+        var buf = new byte[bgr.Width * bgr.Height * 3];
+        bgr.CopyPixelDataTo(buf);
+        return buf;
     }
 }

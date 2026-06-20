@@ -5,7 +5,10 @@ using System.Text.Json.Serialization;
 
 namespace KrakenEliteScreenManager.Services;
 
-public enum DashboardMode { GifLoop, Dashboard, Coolant }
+public enum DashboardMode { GifLoop, Dashboard, GifDashboard, WebPage, Video, Coolant }
+
+/// <summary>How the dashboard stays legible over a GIF (GifDashboard mode).</summary>
+public enum OverlayStyle { Chips, Dim, Vignette, None }
 
 /// <summary>
 /// What the service should display, persisted at ~/.config/kraken-elite-screen-manager/config.json.
@@ -22,6 +25,20 @@ public sealed class DashboardConfig
     public int RefreshSeconds { get; set; } = 5; // Dashboard stat refresh cadence
     public int Brightness { get; set; } = 80;
     public int Rotation { get; set; } = 270; // panel mount; content is pre-rotated by this
+
+    // GifDashboard legibility: overlay style + dim intensity (0-100).
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public OverlayStyle OverlayStyle { get; set; } = OverlayStyle.Chips;
+    public int OverlayDim { get; set; } = 45;
+
+    // WebPage mode: any URL or local .html (YouTube links are auto-embedded/looped).
+    public string WebUrl { get; set; } = "";
+
+    // Video mode: path to a local video file (decoded + looped via ffmpeg).
+    public string VideoFile { get; set; } = "";
+
+    // Streaming frame-rate cap; 0 = uncapped (max).
+    public int MaxFps { get; set; } = 0;
 
     // --- storage --------------------------------------------------------------
 
