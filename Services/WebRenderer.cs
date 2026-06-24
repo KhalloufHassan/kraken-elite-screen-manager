@@ -25,8 +25,17 @@ public sealed class WebRenderer : IAsyncDisposable
         _browser = await _pw.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
             Headless = true,
-            // Let videos (YouTube embeds, <video>) play without a user gesture.
-            Args = new[] { "--autoplay-policy=no-user-gesture-required" },
+            Args = new[]
+            {
+                // Let videos (YouTube embeds, <video>) play without a user gesture.
+                "--autoplay-policy=no-user-gesture-required",
+                // Keep JS timers (clock/temps polling) running at full rate — headless pages
+                // are otherwise treated as "background" and throttled to ~1/min after a few
+                // minutes, which freezes the dashboard's clock/temps mid-stream.
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+            },
         });
         _page = await _browser.NewPageAsync(new BrowserNewPageOptions
         {
